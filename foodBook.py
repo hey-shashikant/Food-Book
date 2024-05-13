@@ -64,21 +64,32 @@ for div in divs:
     else:
         restaurant_rating = "N/A"
 
-    # Extracting estimate time of delivery and restaurant distance
-    # delivery_info = div.find('div', class_='numbers___2xZGn').find_all('div', class_='numbersChild___2qKMV')
-    # print(delivery_info)  # Print delivery_info to see its contents
+
+    delivery_info_element = div.find('div', class_='numbers___2xZGn').find_all('div', class_='numbersChild___2qKMV')
+    delivery_info = [item.get_text(strip=True) for item in delivery_info_element] if delivery_info_element else []
+
+    estimated_delivery_time = "N/A"
+    restaurant_distance = "N/A"
+
+    if len(delivery_info) >= 2:
+        estimated_delivery_time = delivery_info[0]
+        restaurant_distance = delivery_info[1]
+
+     # Extracting estimate time of delivery and restaurant distance
+    # delivery_text_element = div.find('div', class_='numbers___2xZGn').find_all('div', class_='numbersChild___2qKMV')
+    # delivery_text = delivery_text_element.get_text(strip=True) if delivery_text_element else ""
+
+    # delivery_info = delivery_text.split(' • ')
     # if len(delivery_info) >= 2:
-    #     delivery_text = delivery_info[1].text.strip()
-    #     if '•' in delivery_text:
-    #         estimate_delivery_time = delivery_text.split(' • ')[0]
-    #         restaurant_distance = delivery_text.split(' • ')[1]
-    #     else:
-    #         # If '•' is not found, set both values to N/A
-    #         estimate_delivery_time = "N/A"
-    #         restaurant_distance = "N/A"
+    #     restaurant_distance = delivery_info[1]
     # else:
-    #     estimate_delivery_time = "N/A"
     #     restaurant_distance = "N/A"
+    
+    # if len(delivery_info) >= 1:
+    #     estimated_delivery_time = delivery_info[0]
+    # else:
+    #     estimated_delivery_time = "N/A"
+
 
     # Checking if promotional offers are listed for the restaurant
     is_promo_available = bool(div.find('div', class_='promoBadge___3tVSE'))
@@ -103,8 +114,8 @@ for div in divs:
         'name': restaurant_name,
         'cuisine': restaurant_cuisine,
         'rating': restaurant_rating,
-        # 'delivery_time': estimate_delivery_time,
-        # 'distance': restaurant_distance,
+        'delivery_time': estimated_delivery_time,
+        'distance': restaurant_distance,
         'promo_available': is_promo_available,
         'restaurant_id': restaurant_id,
         'image_link': image_link,
