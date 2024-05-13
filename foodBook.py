@@ -6,6 +6,30 @@ from selenium import webdriver
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
+def calculate_delivery_fee(distance, time):
+    # Define base delivery fee and fee per kilometer
+    base_fee = 5  # Base fee in currency
+    fee_per_km = 1  # Fee per kilometer in currency
+
+    print("distance : " + distance)
+    print("time : " + time)
+    print()
+
+     # Extract distance and time from the parameters
+    distance_value = float(distance.split()[0])  # Extract the numeric value of distance
+    time_value = float(time.split()[0])  # Extract the numeric value of time
+
+    # Calculate fee based on distance
+    distance_fee = distance_value * fee_per_km
+
+    # Calculate fee based on time
+    time_fee = time_value  # No conversion needed since 1 minute = 1 currency unit
+
+    # Total delivery fee is the sum of base fee, distance fee, and time fee
+    total_fee = base_fee + distance_fee + time_fee
+
+    return total_fee
+
 start = time.time()
 
 headers = {
@@ -73,16 +97,8 @@ for div in divs:
     restaurant_distance = "N/A"
 
     if len(delivery_info) >= 2:
-        # estimated_delivery_time = delivery_info[1]
-        # # print("test : " + estimated_delivery_time)
-        # restaurant_distance = delivery_info[1]
-        # print("test : " + restaurant_distance)
 
         delivery_info_string = delivery_info[1]
-
-        print("printing delivery info string : " + delivery_info_string)
-
-
         # Define the regex pattern to match the delivery time and distance
         pattern = r'(\d+)\s+mins\s+•\s+(\d+\.\d+)\s+km'
 
@@ -94,19 +110,31 @@ for div in divs:
             # Extract delivery time and distance from the matched groups
             estimated_delivery_time = match.group(1) + " mins"
             restaurant_distance = match.group(2) + " km"
+
+
+            # Calculate delivery fee
+        
+            # Remove units from distance and time before calculating the fee
+            distance_value = match.group(2)
+            time_value = match.group(1)
+            
+            estimate_delivery_fee = calculate_delivery_fee(distance_value, time_value)
         else:
             # Handle the case where no match is found
             estimated_delivery_time = "N/A"
             restaurant_distance = "N/A"
 
+            estimate_delivery_fee = "N/A"  # Assign a default value
 
 
 
     # Checking if promotional offers are listed for the restaurant
-    is_promo_available = bool(div.find('div', class_='promoBadge___3tVSE'))
+    is_promo_available = bool(div.find('div', class_='promoTag___IYhfm'))
 
     # Extracting restaurant ID
-    restaurant_id = div.find('a')['href'].split('/')[-2]
+    # restaurant_id = div.find('a')['href'].split('/')[-1]
+    restaurant_id = div.find('a')['href'].split('/')[-1].rstrip('?')
+
 
     # Extracting image link of the restaurant
     image_link = div.find('img')['src']
@@ -145,7 +173,5 @@ json_data = json.dumps(restaurant_data, indent=4)  # Convert Python list to JSON
 with open('restaurant_data.json', 'w') as json_file:
     json_file.write(json_data)
 
-# Printing the JSON data
-# print(json_data)
 
 
