@@ -58,7 +58,11 @@ for div in divs:
     restaurant_cuisine = div.find('div', class_='cuisine___T2tCh').text.strip()
 
     # Extracting restaurant rating
-    # restaurant_rating = div.find('div', class_='ratingStar').next_sibling.strip()
+    rating_element = div.find('div', class_='ratingStar')
+    if rating_element:
+        restaurant_rating = rating_element.next_sibling.strip()
+    else:
+        restaurant_rating = "N/A"
 
     # Extracting estimate time of delivery and restaurant distance
     # delivery_info = div.find('div', class_='numbers___2xZGn').find_all('div', class_='numbersChild___2qKMV')
@@ -98,7 +102,7 @@ for div in divs:
     restaurant_info = {
         'name': restaurant_name,
         'cuisine': restaurant_cuisine,
-        # 'rating': restaurant_rating,
+        'rating': restaurant_rating,
         # 'delivery_time': estimate_delivery_time,
         # 'distance': restaurant_distance,
         'promo_available': is_promo_available,
@@ -120,6 +124,6 @@ with open('restaurant_data.json', 'w') as json_file:
     json_file.write(json_data)
 
 # Printing the JSON data
-print(json_data)
+# print(json_data)
 
 
