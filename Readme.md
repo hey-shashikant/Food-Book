@@ -33,7 +33,9 @@ The extracted data should be in gzip of ndjson format.
 
 ## Data to Extract
 Extract all the fields/column data visible on the website/response, including:
+
 <img src="image-1.png" alt="alt text" width="250" height="350"/>
+
 - Restaurant Name
 - Restaurant Cuisine
 - Restaurant Rating

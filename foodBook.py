@@ -9,7 +9,7 @@ from urllib.parse import urljoin
 def calculate_delivery_fee(distance, time):
     # Define base delivery fee and fee per kilometer
     base_fee = 5  # Base fee in currency
-    fee_per_km = 1  # Fee per kilometer in currency
+    fee_per_km = 10  # Fee per kilometer in currency
 
     print("distance : " + distance)
     print("time : " + time)
@@ -20,7 +20,7 @@ def calculate_delivery_fee(distance, time):
     time_value = float(time.split()[0])  # Extract the numeric value of time
 
     # Calculate fee based on distance
-    distance_fee = distance_value * fee_per_km
+    distance_fee = distance * fee_per_km
 
     # Calculate fee based on time
     time_fee = time_value  # No conversion needed since 1 minute = 1 currency unit
@@ -118,18 +118,35 @@ for div in divs:
             distance_value = match.group(2)
             time_value = match.group(1)
             
-            estimate_delivery_fee = calculate_delivery_fee(distance_value, time_value)
+            # estimate_delivery_fee = calculate_delivery_fee(distance_value, time_value)
         else:
             # Handle the case where no match is found
             estimated_delivery_time = "N/A"
             restaurant_distance = "N/A"
 
-            estimate_delivery_fee = "N/A"  # Assign a default value
+            # estimate_delivery_fee = "N/A"  # Assign a default value
 
 
 
     # Checking if promotional offers are listed for the restaurant
     is_promo_available = bool(div.find('div', class_='promoTag___IYhfm'))
+
+    # Extracting restaurant URL
+    restaurant_url = "https://food.grab.com" + div.find('a')['href']
+
+    promo_offers = []
+
+    if is_promo_available:
+        driver.get(restaurant_url)
+        time.sleep(2)  # Wait for the page to load (you might need to adjust the wait time)
+
+        test = BeautifulSoup(driver.page_source, "html.parser")
+        print(test)
+        
+        # Extract promotional offers from the page
+        # promo_elements = driver.find_elements_by_class_name('promoTagHead___1bjRG')
+        # for promo_element in promo_elements:
+        #     promo_offers.append(promo_element.text.strip())
 
     # Extracting restaurant ID
     # restaurant_id = div.find('a')['href'].split('/')[-1]
@@ -158,8 +175,7 @@ for div in divs:
         'promo_available': is_promo_available,
         'restaurant_id': restaurant_id,
         'image_link': image_link,
-        'latitude_longitude': latitude_longitude,
-        'delivery_fee': estimate_delivery_fee
+        'latitude_longitude': latitude_longitude
     }
 
     # Appending the restaurant info to the list
