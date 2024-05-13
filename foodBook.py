@@ -1,3 +1,4 @@
+import re
 import time
 import json
 import requests
@@ -72,23 +73,33 @@ for div in divs:
     restaurant_distance = "N/A"
 
     if len(delivery_info) >= 2:
-        estimated_delivery_time = delivery_info[0]
-        restaurant_distance = delivery_info[1]
+        # estimated_delivery_time = delivery_info[1]
+        # # print("test : " + estimated_delivery_time)
+        # restaurant_distance = delivery_info[1]
+        # print("test : " + restaurant_distance)
 
-     # Extracting estimate time of delivery and restaurant distance
-    # delivery_text_element = div.find('div', class_='numbers___2xZGn').find_all('div', class_='numbersChild___2qKMV')
-    # delivery_text = delivery_text_element.get_text(strip=True) if delivery_text_element else ""
+        delivery_info_string = delivery_info[1]
 
-    # delivery_info = delivery_text.split(' • ')
-    # if len(delivery_info) >= 2:
-    #     restaurant_distance = delivery_info[1]
-    # else:
-    #     restaurant_distance = "N/A"
-    
-    # if len(delivery_info) >= 1:
-    #     estimated_delivery_time = delivery_info[0]
-    # else:
-    #     estimated_delivery_time = "N/A"
+        print("printing delivery info string : " + delivery_info_string)
+
+
+        # Define the regex pattern to match the delivery time and distance
+        pattern = r'(\d+)\s+mins\s+•\s+(\d+\.\d+)\s+km'
+
+        # Search for the pattern in the string
+        match = re.search(pattern, delivery_info_string)
+
+        # Check if a match is found
+        if match:
+            # Extract delivery time and distance from the matched groups
+            estimated_delivery_time = match.group(1) + " mins"
+            restaurant_distance = match.group(2) + " km"
+        else:
+            # Handle the case where no match is found
+            estimated_delivery_time = "N/A"
+            restaurant_distance = "N/A"
+
+
 
 
     # Checking if promotional offers are listed for the restaurant
