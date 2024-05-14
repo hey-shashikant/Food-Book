@@ -1,193 +1,118 @@
 import re
 import time
 import json
-import requests
+import gzip
 from selenium import webdriver
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from concurrent.futures import ThreadPoolExecutor
 
-def calculate_delivery_fee(distance, time):
-    # Define base delivery fee and fee per kilometer
-    base_fee = 5  # Base fee in currency
-    fee_per_km = 10  # Fee per kilometer in currency
+class DeliveryFeeCalculator:
+    def __init__(self):
+        self.base_fee = 5
+        self.fee_per_km = 1
 
-    print("distance : " + distance)
-    print("time : " + time)
-    print()
+    def calculate_delivery_fee(self, distance, time):
+        distance_value = float(distance.split()[0])
+        time_value = float(time.split()[0])
 
-     # Extract distance and time from the parameters
-    distance_value = float(distance.split()[0])  # Extract the numeric value of distance
-    time_value = float(time.split()[0])  # Extract the numeric value of time
+        distance_fee = distance_value * self.fee_per_km
+        time_fee = time_value
 
-    # Calculate fee based on distance
-    distance_fee = distance * fee_per_km
+        total_fee = self.base_fee + distance_fee + time_fee
+        return total_fee
 
-    # Calculate fee based on time
-    time_fee = time_value  # No conversion needed since 1 minute = 1 currency unit
+class GrabFoodScraper:
+    def __init__(self):
+        # Initialize scraper with base URL, WebDriver, and other parameters
+        self.base_url = "https://food.grab.com/sg/en/restaurants"
+        self.driver = webdriver.Chrome()
+        self.scroll_pause_time = 3
+        self.screen_height = self.driver.execute_script("return window.screen.height;")
+        self.delivery_fee_calculator = DeliveryFeeCalculator()
 
-    # Total delivery fee is the sum of base fee, distance fee, and time fee
-    total_fee = base_fee + distance_fee + time_fee
+    def scroll_page(self):
+        # Scroll down the page to load more content
+        i = 1
+        while True:
+            self.driver.execute_script("window.scrollTo(0, {screen_height}*{i});".format(screen_height=self.screen_height, i=i))
+            i += 1
+            time.sleep(self.scroll_pause_time)
+            scroll_height = self.driver.execute_script("return document.body.scrollHeight;")
+            if (self.screen_height) * i > scroll_height:
+                break
 
-    return total_fee
+    def scrape_restaurant_data(self, div):
+        # Scrape restaurant data from each div
+        restaurant_name = div.find('p', class_='name___2epcT').text.strip()
+        restaurant_cuisine = div.find('div', class_='cuisine___T2tCh').text.strip()
+        rating_element = div.find('div', class_='ratingStar')
+        restaurant_rating = rating_element.next_sibling.strip() if rating_element else "N/A"
 
-start = time.time()
+        delivery_info_element = div.find('div', class_='numbers___2xZGn').find_all('div', class_='numbersChild___2qKMV')
+        delivery_info = [item.get_text(strip=True) for item in delivery_info_element] if delivery_info_element else []
+        estimated_delivery_time = "N/A"
+        restaurant_distance = "N/A"
+        estimate_delivery_fee = "N/A"
 
-headers = {
-    'authority': 'scrapeme.live',
-    'dnt': '1',
-    'upgrade-insecure-requests': '1',
-    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36',
-    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,/;q=0.8,application/signed-exchange;v=b3;q=0.9',
-    'sec-fetch-site': 'none',
-    'sec-fetch-mode': 'navigate',
-    'sec-fetch-user': '?1',
-    'sec-fetch-dest': 'document',
-    'accept-language': 'en-GB,en-US;q=0.9,en;q=0.8',
-}
+        if len(delivery_info) >= 2:
+            delivery_info_string = delivery_info[1]
+            pattern = r'(\d+)\s+mins\s+•\s+(\d+\.\d+)\s+km'
+            match = re.search(pattern, delivery_info_string)
+            if match:
+                estimated_delivery_time = match.group(1) + " mins"
+                restaurant_distance = match.group(2) + " km"
+                distance_value = match.group(2)
+                time_value = match.group(1)
+                estimate_delivery_fee = self.delivery_fee_calculator.calculate_delivery_fee(distance_value, time_value)
 
-driver = webdriver.Chrome() 
+        is_promo_available = bool(div.find('div', class_='promoTag___IYhfm'))
+        restaurant_id = div.find('a')['href'].split('/')[-1].rstrip('?')
+        image_link = div.find('img')['src']
+        latitude_longitude = None
 
-driver.get(
-    "https://food.grab.com/sg/en/restaurants")  
+        # Create a dictionary containing restaurant information
+        restaurant_info = {
+            'name': restaurant_name,
+            'cuisine': restaurant_cuisine,
+            'rating': restaurant_rating,
+            'delivery_time': estimated_delivery_time,
+            'distance': restaurant_distance,
+            'promo_available': is_promo_available,
+            'restaurant_id': restaurant_id,
+            'image_link': image_link,
+            'latitude_longitude': latitude_longitude,
+            'delivery_fee': estimate_delivery_fee
+        }
+        return restaurant_info
 
-time.sleep(2)  
-scroll_pause_time = 3  
-screen_height = driver.execute_script("return window.screen.height;")  
-i = 1
+    def scrape_and_save_restaurant_data(self):
+        # Main function to scrape and save restaurant data
+        self.driver.get(self.base_url)
+        time.sleep(2)
+        self.scroll_page()
+        soup = BeautifulSoup(self.driver.page_source, "html.parser")
+        divs = soup.find_all('div', class_='RestaurantListCol___1FZ8V')
 
-while True:
-    # scroll one screen height each time
-    driver.execute_script("window.scrollTo(0, {screen_height}*{i});".format(screen_height=screen_height, i=i))
-    i += 1
-    time.sleep(scroll_pause_time)
-    # update scroll height each time after scrolled, as the scroll height can change after we scrolled the page
-    scroll_height = driver.execute_script("return document.body.scrollHeight;")
-    # Break the loop when the height we need to scroll to is larger than the total scroll height
-    if (screen_height) * i > scroll_height:
-        break
+        # Use ThreadPoolExecutor to scrape data concurrently
+        restaurant_data = []
+        with ThreadPoolExecutor() as executor:
+            for div in divs:
+                restaurant_info = self.scrape_restaurant_data(div)
+                restaurant_data.append(restaurant_info)
 
+        # Save data to JSON file and JSON Gzip file
+        json_data = json.dumps(restaurant_data, indent=4) 
+        with open('restaurant_data.json', 'w') as json_file:
+            json_file.write(json_data)
 
-# creating soup
-soup = BeautifulSoup(driver.page_source, "html.parser")
-divs = soup.find_all('div', class_='RestaurantListCol___1FZ8V')
+        with gzip.open('restaurant_data.json.gz', 'wt') as json_file:
+            for restaurant_info in restaurant_data:
+                json.dump(restaurant_info, json_file)
+                json_file.write('\n')
 
-print("printing parsed html...")
-
-restaurant_data = []
-
-for div in divs:
-    # Extracting restaurant name
-    restaurant_name = div.find('p', class_='name___2epcT').text.strip()
-
-    # Extracting restaurant cuisine
-    restaurant_cuisine = div.find('div', class_='cuisine___T2tCh').text.strip()
-
-    # Extracting restaurant rating
-    rating_element = div.find('div', class_='ratingStar')
-    if rating_element:
-        restaurant_rating = rating_element.next_sibling.strip()
-    else:
-        restaurant_rating = "N/A"
-
-
-    delivery_info_element = div.find('div', class_='numbers___2xZGn').find_all('div', class_='numbersChild___2qKMV')
-    delivery_info = [item.get_text(strip=True) for item in delivery_info_element] if delivery_info_element else []
-
-    estimated_delivery_time = "N/A"
-    restaurant_distance = "N/A"
-
-    if len(delivery_info) >= 2:
-
-        delivery_info_string = delivery_info[1]
-        # Define the regex pattern to match the delivery time and distance
-        pattern = r'(\d+)\s+mins\s+•\s+(\d+\.\d+)\s+km'
-
-        # Search for the pattern in the string
-        match = re.search(pattern, delivery_info_string)
-
-        # Check if a match is found
-        if match:
-            # Extract delivery time and distance from the matched groups
-            estimated_delivery_time = match.group(1) + " mins"
-            restaurant_distance = match.group(2) + " km"
-
-
-            # Calculate delivery fee
-        
-            # Remove units from distance and time before calculating the fee
-            distance_value = match.group(2)
-            time_value = match.group(1)
-            
-            # estimate_delivery_fee = calculate_delivery_fee(distance_value, time_value)
-        else:
-            # Handle the case where no match is found
-            estimated_delivery_time = "N/A"
-            restaurant_distance = "N/A"
-
-            # estimate_delivery_fee = "N/A"  # Assign a default value
-
-
-
-    # Checking if promotional offers are listed for the restaurant
-    is_promo_available = bool(div.find('div', class_='promoTag___IYhfm'))
-
-    # Extracting restaurant URL
-    restaurant_url = "https://food.grab.com" + div.find('a')['href']
-
-    promo_offers = []
-
-    if is_promo_available:
-        driver.get(restaurant_url)
-        time.sleep(2)  # Wait for the page to load (you might need to adjust the wait time)
-
-        test = BeautifulSoup(driver.page_source, "html.parser")
-        print(test)
-        
-        # Extract promotional offers from the page
-        # promo_elements = driver.find_elements_by_class_name('promoTagHead___1bjRG')
-        # for promo_element in promo_elements:
-        #     promo_offers.append(promo_element.text.strip())
-
-    # Extracting restaurant ID
-    # restaurant_id = div.find('a')['href'].split('/')[-1]
-    restaurant_id = div.find('a')['href'].split('/')[-1].rstrip('?')
-
-
-    # Extracting image link of the restaurant
-    image_link = div.find('img')['src']
-
-    # Extracting latitude and longitude of the restaurant (if available)
-    # You may need to modify this part based on how latitude and longitude are structured in the HTML
-    latitude_longitude = None  # Placeholder for latitude and longitude extraction
-
-    # Extracting estimate delivery fee (if available)
-    estimate_delivery_fee = None  # Placeholder for estimate delivery fee extraction
-
-    # You can add code here to extract latitude, longitude, and delivery fee if available
-
-    # Creating a dictionary to store the extracted information
-    restaurant_info = {
-        'name': restaurant_name,
-        'cuisine': restaurant_cuisine,
-        'rating': restaurant_rating,
-        'delivery_time': estimated_delivery_time,
-        'distance': restaurant_distance,
-        'promo_available': is_promo_available,
-        'restaurant_id': restaurant_id,
-        'image_link': image_link,
-        'latitude_longitude': latitude_longitude
-    }
-
-    # Appending the restaurant info to the list
-    restaurant_data.append(restaurant_info)
-
-
-# Creating the JSON array
-json_data = json.dumps(restaurant_data, indent=4)  # Convert Python list to JSON string with indentation
-
-# Writing JSON data to a file
-with open('restaurant_data.json', 'w') as json_file:
-    json_file.write(json_data)
-
-
-
+if __name__ == "__main__":
+    start = time.time()
+    scraper = GrabFoodScraper()
+    scraper.scrape_and_save_restaurant_data()
+    end = time.time()
+    print("Time taken: ", end - start)
